@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Decrees — Och'Idoma</title>
+<meta name="description" content="Official Royal Decrees of the Idoma Kingdom, published by the Palace.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <div class="site-wordmark">INSIDE THE <span>OCHIDOMA'S</span> PALACE</div>
+    <nav class="site-nav">
+      <a href="index.html">Home</a>
+      <a href="heritage.html">Heritage</a>
+      <a href="history.html">History</a>
+      <a href="food.html">Food</a>
+      <a href="events.html">Events</a>
+      <a href="palace.html">Palace</a>
+      <a href="decrees.html" class="active">Royal Decrees</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="about.html">About</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding: 56px 0 64px;">
+  <div class="container">
+    <span class="official-badge">✓ Official Palace Publication</span>
+    <h1 style="margin-top: 16px;">Royal Decrees</h1>
+    <p class="lede">The official, published record of decrees issued by the Palace. Each decree carries a permanent reference number and an integrity hash — a technical safeguard, not a legal seal.</p>
+    <p>
+      <input id="search-box" type="search" placeholder="Search decrees by title or authority…"
+        style="width: 100%; max-width: 420px; padding: 11px 14px; border: 1px solid var(--parchment-dim); background: rgba(255,255,255,0.08); color: var(--white); border-radius: var(--radius);">
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div id="decrees-list" style="display: flex; flex-direction: column; gap: 20px;">
+      <div class="state-message">Loading decrees…</div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <h4>Och'Idoma</h4>
+        <p style="color: var(--parchment-dim); font-size: 0.92rem;">The official digital home for Idoma heritage, history, and Palace communications.</p>
+      </div>
+      <div>
+        <h4>Explore</h4>
+        <a href="heritage.html">Heritage</a>
+        <a href="history.html">History</a>
+        <a href="food.html">Food</a>
+        <a href="gallery.html">Gallery</a>
+      </div>
+      <div>
+        <h4>Palace</h4>
+        <a href="palace.html">Announcements</a>
+        <a href="decrees.html">Royal Decrees</a>
+        <a href="about.html">About</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Och'Idoma. Cultural content preserved and presented for the Idoma people.</div>
+  </div>
+</footer>
+
+<script src="js/api.js"></script>
+<script>
+  let allDecrees = [];
+
+  function renderDecrees(decrees) {
+    const el = document.getElementById('decrees-list');
+    if (decrees.length === 0) {
+      renderState(el, 'No decrees match your search.');
+      return;
+    }
+    el.innerHTML = decrees.map(d => `
+      <article class="panel is-official">
+        <span class="official-badge">✓ Official Palace Publication</span>
+        ${d.is_correction ? '<span class="demo-flag" style="color: var(--blue); border-color: var(--blue);">CORRECTED VERSION</span>' : ''}
+        <h3 style="margin-top: 14px;">${escapeHTML(d.title)}</h3>
+        <div class="meta">
+          Version ${d.version_number.toFixed ? d.version_number.toFixed(1) : d.version_number}
+          · Issued by ${escapeHTML(d.issuing_authority)}
+          · Published ${formatDate(d.published_at)}
+        </div>
+        <p>${escapeHTML(d.full_text)}</p>
+        <div class="meta" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line);">
+          Integrity hash: <span class="ref-number">${escapeHTML(d.integrity_hash.slice(0, 24))}…</span>
+        </div>
+      </article>
+    `).join('');
+  }
+
+  async function loadDecrees() {
+    const el = document.getElementById('decrees-list');
+    try {
+      allDecrees = await api.decrees();
+      if (allDecrees.length === 0) {
+        renderState(el, 'No decrees have been published yet. Check back soon.');
+        return;
+      }
+      renderDecrees(allDecrees);
+    } catch (err) {
+      renderState(el, 'Could not reach the Palace record right now — the API may be offline.');
+      console.error(err);
+    }
+  }
+
+  document.getElementById('search-box').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) { renderDecrees(allDecrees); return; }
+    renderDecrees(allDecrees.filter(d =>
+      d.title.toLowerCase().includes(q) || d.issuing_authority.toLowerCase().includes(q)
+    ));
+  });
+
+  loadDecrees();
+</script>
+</body>
+</html>

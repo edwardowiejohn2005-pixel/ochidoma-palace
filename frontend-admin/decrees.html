@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Decrees — Palace Admin Portal</title>
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">INSIDE THE <span>OCHIDOMA'S</span> PALACE<br><span style="color: var(--parchment-dim); font-size: 0.8rem;">Admin Portal</span></div>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="content.html?type=articles">Articles</a>
+      <a href="content.html?type=foods">Foods</a>
+      <a href="content.html?type=events">Events</a>
+      <a href="announcements.html">Announcements</a>
+      <a href="decrees.html" class="active">Royal Decrees</a>
+    </nav>
+    <div class="user-info" id="sidebar-user"></div>
+  </aside>
+
+  <main class="main">
+    <div class="main-head">
+      <h1 style="font-size: 1.6rem;">Royal Decrees</h1>
+      <button class="btn btn-primary" id="new-decree-btn">New decree</button>
+    </div>
+
+    <div id="error-banner" class="error-banner hidden"></div>
+    <div id="decree-list"><div class="empty-state">Loading…</div></div>
+  </main>
+</div>
+
+<!-- New decree modal -->
+<div class="modal-backdrop hidden" id="new-modal">
+  <div class="modal">
+    <h2 style="font-size: 1.2rem;">New decree</h2>
+    <div class="field">
+      <label>Decree number</label>
+      <input id="f-number" placeholder="PALACE-DECREE-2026-002">
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input id="f-title">
+    </div>
+    <div class="field">
+      <label>Issuing authority</label>
+      <input id="f-authority">
+    </div>
+    <div class="field">
+      <label>Full text</label>
+      <textarea id="f-text" rows="6"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('new-modal')">Cancel</button>
+      <button class="btn btn-primary" id="new-modal-save">Create draft</button>
+    </div>
+  </div>
+</div>
+
+<!-- Correction modal -->
+<div class="modal-backdrop hidden" id="correct-modal">
+  <div class="modal">
+    <h2 style="font-size: 1.2rem;">Correct decree</h2>
+    <p style="font-size: 0.88rem; color: var(--ink-soft);">This creates a new version. The original published decree stays untouched and visible.</p>
+    <div class="field">
+      <label>Title</label>
+      <input id="c-title">
+    </div>
+    <div class="field">
+      <label>Issuing authority</label>
+      <input id="c-authority">
+    </div>
+    <div class="field">
+      <label>Full text</label>
+      <textarea id="c-text" rows="6"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('correct-modal')">Cancel</button>
+      <button class="btn btn-primary" id="correct-modal-save">Create correction</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  requireLogin();
+  renderSidebarUser();
+
+  const canEdit = canEditContent();       // super_admin, palace_editor
+  const canPublish = isPublisher();       // super_admin, palace_publisher
+  let correctingVersionId = null;
+
+  function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+  function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+  function actionButtons(d) {
+    const btns = [];
+    if (canEdit && d.status === 'draft') {
+      btns.push(`<button class="btn btn-small" onclick="submitDecree('${d.id}')">Submit for review</button>`);
+    }
+    if (canPublish && d.status === 'in_review') {
+      btns.push(`<button class="btn btn-small btn-primary" onclick="approveDecree('${d.id}')">Approve</button>`);
+    }
+    if (canPublish && d.status === 'approved') {
+      btns.push(`<button class="btn btn-small btn-primary" onclick="publishDecree('${d.id}')">Publish</button>`);
+    }
+    if (canPublish && d.status === 'published') {
+      btns.push(`<button class="btn btn-small" onclick="archiveDecree('${d.id}')">Archive</button>`);
+    }
+    if (canEdit && d.status === 'published') {
+      btns.push(`<button class="btn btn-small" onclick="openCorrectModal('${d.id}')">Create correction</button>`);
+    }
+    return btns.join('');
+  }
+
+  async function loadDecrees() {
+    const el = document.getElementById('decree-list');
+    try {
+      const decrees = await authGet('/api/admin/decrees');
+      if (decrees.length === 0) {
+        el.innerHTML = '<div class="empty-state">No decrees yet. Create the first one.</div>';
+        return;
+      }
+      el.innerHTML = decrees.map(d => `
+        <div class="card">
+          <div class="meta">
+            v${d.version_number} · ${escapeHTML(d.issuing_authority)}
+            ${d.is_correction ? ' · <strong style="color: var(--blue);">correction</strong>' : ''}
+          </div>
+          <h3>${escapeHTML(d.title)} <span class="status-pill status-${d.status}">${d.status.replace('_', ' ')}</span></h3>
+          <div class="meta">Created ${formatDate(d.created_at)}${d.published_at ? ' · Published ' + formatDate(d.published_at) : ''}</div>
+          <div class="actions">${actionButtons(d) || '<span style="color: var(--ink-soft); font-size: 0.85rem;">No actions available for your role at this stage.</span>'}</div>
+        </div>
+      `).join('');
+    } catch (err) {
+      showError(err.message);
+    }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-banner');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 5000);
+  }
+
+  async function submitDecree(id) {
+    try { await authPost(`/api/admin/decrees/${id}/submit`); loadDecrees(); }
+    catch (err) { showError(err.message); }
+  }
+  async function approveDecree(id) {
+    try { await authPost(`/api/admin/decrees/${id}/approve`); loadDecrees(); }
+    catch (err) { showError(err.message); }
+  }
+  async function publishDecree(id) {
+    if (!confirm('Publish this decree? Once published, its content becomes permanent — corrections create a new version instead of editing this one.')) return;
+    try { await authPost(`/api/admin/decrees/${id}/publish`); loadDecrees(); }
+    catch (err) { showError(err.message); }
+  }
+  async function archiveDecree(id) {
+    if (!confirm('Archive this decree version?')) return;
+    try { await authPost(`/api/admin/decrees/${id}/archive`); loadDecrees(); }
+    catch (err) { showError(err.message); }
+  }
+
+  function openCorrectModal(id) {
+    correctingVersionId = id;
+    document.getElementById('c-title').value = '';
+    document.getElementById('c-authority').value = '';
+    document.getElementById('c-text').value = '';
+    openModal('correct-modal');
+  }
+
+  document.getElementById('new-decree-btn').addEventListener('click', () => {
+    if (!canEdit) { showError('Your role cannot create decrees.'); return; }
+    document.getElementById('f-number').value = '';
+    document.getElementById('f-title').value = '';
+    document.getElementById('f-authority').value = '';
+    document.getElementById('f-text').value = '';
+    openModal('new-modal');
+  });
+
+  document.getElementById('new-modal-save').addEventListener('click', async () => {
+    try {
+      await authPost('/api/admin/decrees', {
+        decree_number: document.getElementById('f-number').value,
+        title: document.getElementById('f-title').value,
+        full_text: document.getElementById('f-text').value,
+        issuing_authority: document.getElementById('f-authority').value,
+      });
+      closeModal('new-modal');
+      loadDecrees();
+    } catch (err) { showError(err.message); }
+  });
+
+  document.getElementById('correct-modal-save').addEventListener('click', async () => {
+    try {
+      await authPost(`/api/admin/decrees/${correctingVersionId}/correct`, {
+        title: document.getElementById('c-title').value,
+        full_text: document.getElementById('c-text').value,
+        issuing_authority: document.getElementById('c-authority').value,
+      });
+      closeModal('correct-modal');
+      loadDecrees();
+    } catch (err) { showError(err.message); }
+  });
+
+  loadDecrees();
+</script>
+</body>
+</html>

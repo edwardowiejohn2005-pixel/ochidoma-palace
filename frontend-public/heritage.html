@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Idoma Heritage — Och'Idoma</title>
+<meta name="description" content="Idoma traditional values, customs, clothing, music, dance, festivals, and cultural heritage.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <div class="site-wordmark">INSIDE THE <span>OCHIDOMA'S</span> PALACE</div>
+    <nav class="site-nav">
+      <a href="index.html">Home</a>
+      <a href="heritage.html" class="active">Heritage</a>
+      <a href="history.html">History</a>
+      <a href="food.html">Food</a>
+      <a href="events.html">Events</a>
+      <a href="palace.html">Palace</a>
+      <a href="decrees.html">Royal Decrees</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="about.html">About</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding: 56px 0 64px;">
+  <div class="container">
+    <h1>Idoma Heritage</h1>
+    <p class="lede">Traditional values, customs, clothing, music, dance, festivals, and the cultural life of the Idoma people.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div id="article-list" style="display: flex; flex-direction: column; gap: 20px;">
+      <div class="state-message">Loading heritage articles…</div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <h4>Och'Idoma</h4>
+        <p style="color: var(--parchment-dim); font-size: 0.92rem;">The official digital home for Idoma heritage, history, and Palace communications.</p>
+      </div>
+      <div>
+        <h4>Explore</h4>
+        <a href="heritage.html">Heritage</a>
+        <a href="history.html">History</a>
+        <a href="food.html">Food</a>
+        <a href="gallery.html">Gallery</a>
+      </div>
+      <div>
+        <h4>Palace</h4>
+        <a href="palace.html">Announcements</a>
+        <a href="decrees.html">Royal Decrees</a>
+        <a href="about.html">About</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Och'Idoma. Cultural content preserved and presented for the Idoma people.</div>
+  </div>
+</footer>
+
+<script src="js/api.js"></script>
+<script>
+  async function loadArticles() {
+    const el = document.getElementById('article-list');
+    try {
+      const articles = await api.articles({ section: 'heritage' });
+      if (articles.length === 0) {
+        renderState(el, 'No heritage articles have been published yet. Check back soon.');
+        return;
+      }
+      el.innerHTML = articles.map(a => `
+        <article class="panel">
+          ${a.is_demo_content ? '<span class="demo-flag">DEMO CONTENT</span>' : ''}
+          <div class="meta">Published ${formatDate(a.published_at)}</div>
+          <h3>${escapeHTML(a.title)}</h3>
+          ${a.description ? `<p style="color: var(--ink-soft);">${escapeHTML(a.description)}</p>` : ''}
+          <p>${escapeHTML(a.body)}</p>
+          ${a.sources ? `<div class="meta" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line);">Sources: ${escapeHTML(a.sources)}</div>` : ''}
+        </article>
+      `).join('');
+    } catch (err) {
+      renderState(el, 'Could not load heritage articles right now — the API may be offline.');
+      console.error(err);
+    }
+  }
+  loadArticles();
+</script>
+</body>
+</html>

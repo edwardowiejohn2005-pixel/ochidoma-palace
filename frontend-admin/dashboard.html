@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Palace Admin Portal</title>
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">INSIDE THE <span>OCHIDOMA'S</span> PALACE<br><span style="color: var(--parchment-dim); font-size: 0.8rem;">Admin Portal</span></div>
+    <nav>
+      <a href="dashboard.html" class="active">Dashboard</a>
+      <a href="content.html?type=articles">Articles</a>
+      <a href="content.html?type=foods">Foods</a>
+      <a href="content.html?type=events">Events</a>
+      <a href="announcements.html">Announcements</a>
+      <a href="decrees.html">Royal Decrees</a>
+    </nav>
+    <div class="user-info" id="sidebar-user"></div>
+  </aside>
+
+  <main class="main">
+    <div class="main-head">
+      <h1 style="font-size: 1.6rem;">Dashboard</h1>
+    </div>
+
+    <div id="error-banner" class="error-banner hidden"></div>
+
+    <div class="stat-grid" id="stat-grid">
+      <div class="stat-card"><div class="num">—</div><div class="label">Loading…</div></div>
+    </div>
+
+    <h2 style="font-size: 1.15rem; margin-top: 32px;">Awaiting your review</h2>
+    <div id="review-queue">
+      <div class="empty-state">Loading…</div>
+    </div>
+  </main>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  requireLogin();
+  renderSidebarUser();
+
+  async function loadDashboard() {
+    const errorBanner = document.getElementById('error-banner');
+    try {
+      const [articles, foods, events, announcements, decrees] = await Promise.all([
+        authGet('/api/admin/articles'),
+        authGet('/api/admin/foods'),
+        authGet('/api/admin/events'),
+        authGet('/api/admin/announcements'),
+        authGet('/api/admin/decrees'),
+      ]);
+
+      const countByStatus = (list, status) => list.filter(x => (x.status || x.current_status) === status).length;
+
+      document.getElementById('stat-grid').innerHTML = `
+        <div class="stat-card"><div class="num">${articles.length}</div><div class="label">Articles</div></div>
+        <div class="stat-card"><div class="num">${foods.length}</div><div class="label">Food entries</div></div>
+        <div class="stat-card"><div class="num">${events.length}</div><div class="label">Events</div></div>
+        <div class="stat-card" style="border-left-color: var(--red);"><div class="num">${announcements.length}</div><div class="label">Announcements</div></div>
+        <div class="stat-card" style="border-left-color: var(--red);"><div class="num">${decrees.length}</div><div class="label">Decree versions</div></div>
+        <div class="stat-card"><div class="num">${countByStatus(announcements, 'in_review') + countByStatus(decrees, 'in_review')}</div><div class="label">Awaiting approval</div></div>
+      `;
+
+      // Review queue: anything in_review, most relevant if you're a publisher.
+      const pending = [
+        ...announcements.filter(a => a.status === 'in_review').map(a => ({ kind: 'Announcement', title: a.title, href: 'announcements.html' })),
+        ...decrees.filter(d => d.status === 'in_review').map(d => ({ kind: 'Decree', title: d.title, href: 'decrees.html' })),
+      ];
+      const queueEl = document.getElementById('review-queue');
+      if (pending.length === 0) {
+        queueEl.innerHTML = '<div class="empty-state">Nothing is waiting for approval right now.</div>';
+      } else {
+        queueEl.innerHTML = pending.map(p => `
+          <div class="card">
+            <div class="meta">${p.kind}</div>
+            <h3>${escapeHTML(p.title)}</h3>
+            <div class="actions"><a href="${p.href}" class="btn btn-small">Review</a></div>
+          </div>
+        `).join('');
+      }
+    } catch (err) {
+      errorBanner.textContent = err.message;
+      errorBanner.classList.remove('hidden');
+    }
+  }
+
+  loadDashboard();
+</script>
+</body>
+</html>

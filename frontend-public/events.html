@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Events — Och'Idoma</title>
+<meta name="description" content="Upcoming and past cultural and community events for the Idoma people.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <div class="site-wordmark">INSIDE THE <span>OCHIDOMA'S</span> PALACE</div>
+    <nav class="site-nav">
+      <a href="index.html">Home</a>
+      <a href="heritage.html">Heritage</a>
+      <a href="history.html">History</a>
+      <a href="food.html">Food</a>
+      <a href="events.html" class="active">Events</a>
+      <a href="palace.html">Palace</a>
+      <a href="decrees.html">Royal Decrees</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="about.html">About</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding: 56px 0 64px;">
+  <div class="container">
+    <h1>Events</h1>
+    <p class="lede">Cultural festivals, community gatherings, and Palace events.</p>
+    <p>
+      <button class="btn btn-primary" id="tab-upcoming" style="margin-right: 8px;">Upcoming</button>
+      <button class="btn btn-ghost" id="tab-completed" style="color: var(--parchment); border-color: var(--parchment-dim);">Past events</button>
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div id="events-list" class="panel-grid">
+      <div class="state-message">Loading events…</div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <h4>Och'Idoma</h4>
+        <p style="color: var(--parchment-dim); font-size: 0.92rem;">The official digital home for Idoma heritage, history, and Palace communications.</p>
+      </div>
+      <div>
+        <h4>Explore</h4>
+        <a href="heritage.html">Heritage</a>
+        <a href="history.html">History</a>
+        <a href="food.html">Food</a>
+        <a href="gallery.html">Gallery</a>
+      </div>
+      <div>
+        <h4>Palace</h4>
+        <a href="palace.html">Announcements</a>
+        <a href="decrees.html">Royal Decrees</a>
+        <a href="about.html">About</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Och'Idoma. Cultural content preserved and presented for the Idoma people.</div>
+  </div>
+</footer>
+
+<script src="js/api.js"></script>
+<script>
+  async function loadEvents(status) {
+    const el = document.getElementById('events-list');
+    renderState(el, 'Loading events…');
+    try {
+      const events = await api.events(status);
+      if (events.length === 0) {
+        renderState(el, status === 'upcoming' ? 'No upcoming events scheduled right now.' : 'No past events recorded yet.');
+        return;
+      }
+      el.innerHTML = events.map(e => `
+        <article class="panel">
+          ${e.is_demo_content ? '<span class="demo-flag">DEMO CONTENT</span>' : ''}
+          <div class="meta">${formatDate(e.starts_at)}${e.location ? ' · ' + escapeHTML(e.location) : ''}${e.category ? ' · ' + escapeHTML(e.category) : ''}</div>
+          <h3>${escapeHTML(e.name)}</h3>
+          ${e.description ? `<p>${escapeHTML(e.description)}</p>` : ''}
+          ${e.organizer ? `<div class="meta">Organized by ${escapeHTML(e.organizer)}</div>` : ''}
+        </article>
+      `).join('');
+    } catch (err) {
+      renderState(el, 'Could not load events right now — the API may be offline.');
+      console.error(err);
+    }
+  }
+
+  const upcomingBtn = document.getElementById('tab-upcoming');
+  const completedBtn = document.getElementById('tab-completed');
+
+  function setActiveTab(active) {
+    [upcomingBtn, completedBtn].forEach(b => {
+      const isActive = b === active;
+      b.className = isActive ? 'btn btn-primary' : 'btn btn-ghost';
+      if (!isActive) { b.style.color = 'var(--parchment)'; b.style.borderColor = 'var(--parchment-dim)'; }
+    });
+  }
+
+  upcomingBtn.addEventListener('click', () => { setActiveTab(upcomingBtn); loadEvents('upcoming'); });
+  completedBtn.addEventListener('click', () => { setActiveTab(completedBtn); loadEvents('completed'); });
+
+  loadEvents('upcoming');
+</script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Och'Idoma — Idoma Heritage & Palace</title>
+<meta name="description" content="The official digital home for the Idoma people — heritage, history, culture, and communications from the Palace.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <div class="site-wordmark">INSIDE THE <span>OCHIDOMA'S</span> PALACE</div>
+    <nav class="site-nav">
+      <a href="index.html" class="active">Home</a>
+      <a href="heritage.html">Heritage</a>
+      <a href="history.html">History</a>
+      <a href="food.html">Food</a>
+      <a href="events.html">Events</a>
+      <a href="palace.html">Palace</a>
+      <a href="decrees.html">Royal Decrees</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="about.html">About</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <h1>The Idoma people, their heritage, and their Palace — in one place.</h1>
+    <p class="lede">A digital home for Idoma culture, history, and the official record of the Palace: heritage, food, festivals, and the announcements and decrees that carry the Palace's authority.</p>
+    <p>
+      <a href="heritage.html" class="btn btn-primary">Explore heritage</a>
+      &nbsp;
+      <a href="palace.html" class="btn" style="border-color: var(--parchment-dim); color: var(--parchment);">Visit the Palace</a>
+    </p>
+  </div>
+</section>
+
+<section class="section palace-mode">
+  <div class="container">
+    <div class="section-head">
+      <h2>Latest from the Palace</h2>
+      <a class="see-all" href="palace.html">All announcements &amp; decrees</a>
+    </div>
+    <div id="palace-feed" class="panel-grid">
+      <div class="state-message">Loading the latest from the Palace…</div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-alt">
+  <div class="container">
+    <div class="section-head">
+      <h2>Upcoming events</h2>
+      <a class="see-all" href="events.html">All events</a>
+    </div>
+    <div id="events-feed" class="panel-grid">
+      <div class="state-message">Loading upcoming events…</div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <h2>Idoma food &amp; cuisine</h2>
+      <a class="see-all" href="food.html">Explore Idoma food</a>
+    </div>
+    <div id="food-feed" class="panel-grid">
+      <div class="state-message">Loading food entries…</div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <h4>Och'Idoma</h4>
+        <p style="color: var(--parchment-dim); font-size: 0.92rem;">The official digital home for Idoma heritage, history, and Palace communications.</p>
+      </div>
+      <div>
+        <h4>Explore</h4>
+        <a href="heritage.html">Heritage</a>
+        <a href="history.html">History</a>
+        <a href="food.html">Food</a>
+        <a href="gallery.html">Gallery</a>
+      </div>
+      <div>
+        <h4>Palace</h4>
+        <a href="palace.html">Announcements</a>
+        <a href="decrees.html">Royal Decrees</a>
+        <a href="about.html">About</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Och'Idoma. Cultural content preserved and presented for the Idoma people.</div>
+  </div>
+</footer>
+
+<script src="js/api.js"></script>
+<script>
+  async function loadPalaceFeed() {
+    const el = document.getElementById('palace-feed');
+    try {
+      const [decrees, announcements] = await Promise.all([api.decrees(), api.announcements()]);
+      const items = [
+        ...decrees.slice(0, 2).map(d => ({ type: 'Decree', ref: d.title, number: null, id: d.id, date: d.published_at, href: `decrees.html` })),
+        ...announcements.slice(0, 2).map(a => ({ type: 'Announcement', ref: a.title, number: a.reference_number, id: a.id, date: a.published_at, href: `palace.html` })),
+      ];
+      if (items.length === 0) {
+        renderState(el, 'No official Palace publications yet. Check back soon.');
+        return;
+      }
+      el.innerHTML = items.map(item => `
+        <div class="panel is-official">
+          <span class="official-badge">✓ Official Palace Publication</span>
+          <h3 style="margin-top: 14px;"><a href="${item.href}" style="color: var(--white);">${escapeHTML(item.ref)}</a></h3>
+          <div class="meta" style="color: var(--parchment-dim);">
+            ${item.type}${item.number ? ' · <span class="ref-number" style="color:#ffb4b4">' + escapeHTML(item.number) + '</span>' : ''}
+            ${item.date ? ' · ' + formatDate(item.date) : ''}
+          </div>
+        </div>
+      `).join('');
+    } catch (err) {
+      renderState(el, 'Could not reach the Palace feed right now.');
+      console.error(err);
+    }
+  }
+
+  async function loadEventsFeed() {
+    const el = document.getElementById('events-feed');
+    try {
+      const events = await api.events('upcoming');
+      if (events.length === 0) {
+        renderState(el, 'No upcoming events scheduled right now.');
+        return;
+      }
+      el.innerHTML = events.slice(0, 3).map(e => `
+        <div class="panel">
+          <div class="meta">${formatDate(e.starts_at)}${e.location ? ' · ' + escapeHTML(e.location) : ''}</div>
+          <h3><a href="events.html">${escapeHTML(e.name)}</a></h3>
+          ${e.description ? `<p>${escapeHTML(e.description)}</p>` : ''}
+        </div>
+      `).join('');
+    } catch (err) {
+      renderState(el, 'Could not load events right now.');
+      console.error(err);
+    }
+  }
+
+  async function loadFoodFeed() {
+    const el = document.getElementById('food-feed');
+    try {
+      const foods = await api.foods();
+      if (foods.length === 0) {
+        renderState(el, 'No food entries published yet.');
+        return;
+      }
+      el.innerHTML = foods.slice(0, 3).map(f => `
+        <div class="panel">
+          ${f.region ? `<div class="meta">${escapeHTML(f.region)}</div>` : ''}
+          <h3><a href="food.html">${escapeHTML(f.name)}</a>${f.local_name ? ` <span style="color: var(--ink-soft); font-weight: 400;">(${escapeHTML(f.local_name)})</span>` : ''}</h3>
+          ${f.description ? `<p>${escapeHTML(f.description)}</p>` : ''}
+        </div>
+      `).join('');
+    } catch (err) {
+      renderState(el, 'Could not load food entries right now.');
+      console.error(err);
+    }
+  }
+
+  loadPalaceFeed();
+  loadEventsFeed();
+  loadFoodFeed();
+</script>
+</body>
+</html>

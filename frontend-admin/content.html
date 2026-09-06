@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">Content — Palace Admin Portal</title>
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">INSIDE THE <span>OCHIDOMA'S</span> PALACE<br><span style="color: var(--parchment-dim); font-size: 0.8rem;">Admin Portal</span></div>
+    <nav id="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="content.html?type=articles" data-type="articles">Articles</a>
+      <a href="content.html?type=foods" data-type="foods">Foods</a>
+      <a href="content.html?type=events" data-type="events">Events</a>
+      <a href="announcements.html">Announcements</a>
+      <a href="decrees.html">Royal Decrees</a>
+    </nav>
+    <div class="user-info" id="sidebar-user"></div>
+  </aside>
+
+  <main class="main">
+    <div class="main-head">
+      <h1 id="heading" style="font-size: 1.6rem;">Content</h1>
+      <button class="btn btn-primary" id="new-btn">New</button>
+    </div>
+
+    <div id="error-banner" class="error-banner hidden"></div>
+    <div id="list"><div class="empty-state">Loading…</div></div>
+  </main>
+</div>
+
+<div class="modal-backdrop hidden" id="edit-modal">
+  <div class="modal">
+    <h2 id="modal-title" style="font-size: 1.2rem;">New item</h2>
+    <div id="modal-fields"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modal-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  requireLogin();
+  renderSidebarUser();
+
+  const TYPE_CONFIG = {
+    articles: {
+      label: 'Articles', endpoint: '/api/admin/articles',
+      statusValues: ['draft', 'in_review', 'approved', 'published', 'archived'],
+      fields: [
+        { key: 'section', label: 'Section', type: 'select', options: ['heritage', 'history'] },
+        { key: 'title', label: 'Title', type: 'text' },
+        { key: 'slug', label: 'Slug', type: 'text' },
+        { key: 'description', label: 'Description', type: 'textarea' },
+        { key: 'body', label: 'Body', type: 'textarea', rows: 8 },
+        { key: 'sources', label: 'Sources', type: 'textarea' },
+      ],
+      titleOf: (item) => item.title,
+      metaOf: (item) => item.section,
+    },
+    foods: {
+      label: 'Foods', endpoint: '/api/admin/foods',
+      statusValues: ['draft', 'in_review', 'approved', 'published', 'archived'],
+      fields: [
+        { key: 'name', label: 'Name', type: 'text' },
+        { key: 'local_name', label: 'Local name', type: 'text' },
+        { key: 'slug', label: 'Slug', type: 'text' },
+        { key: 'region', label: 'Region', type: 'text' },
+        { key: 'description', label: 'Description', type: 'textarea' },
+        { key: 'ingredients', label: 'Ingredients', type: 'textarea' },
+        { key: 'preparation', label: 'Preparation', type: 'textarea' },
+        { key: 'cultural_significance', label: 'Cultural significance', type: 'textarea' },
+      ],
+      titleOf: (item) => item.name,
+      metaOf: (item) => item.region,
+    },
+    events: {
+      label: 'Events', endpoint: '/api/admin/events',
+      statusValues: ['upcoming', 'ongoing', 'completed'],
+      fields: [
+        { key: 'name', label: 'Name', type: 'text' },
+        { key: 'slug', label: 'Slug', type: 'text' },
+        { key: 'starts_at', label: 'Starts at', type: 'datetime-local' },
+        { key: 'ends_at', label: 'Ends at', type: 'datetime-local' },
+        { key: 'location', label: 'Location', type: 'text' },
+        { key: 'organizer', label: 'Organizer', type: 'text' },
+        { key: 'category', label: 'Category', type: 'text' },
+        { key: 'description', label: 'Description', type: 'textarea' },
+      ],
+      titleOf: (item) => item.name,
+      metaOf: (item) => item.location,
+    },
+  };
+
+  const params = new URLSearchParams(window.location.search);
+  const type = params.get('type') || 'articles';
+  const config = TYPE_CONFIG[type];
+
+  document.title = `${config.label} — Palace Admin Portal`;
+  document.getElementById('heading').textContent = config.label;
+  document.querySelectorAll('#sidebar-nav a[data-type]').forEach(a => {
+    if (a.dataset.type === type) a.classList.add('active');
+  });
+
+  const canEdit = canEditContent();       // super_admin, palace_editor, cultural_editor
+  const canPublish = isCulturalEditor();  // cultural_editor/super_admin publish their own domain directly
+
+  let editingId = null;
+
+  function openModal() { document.getElementById('edit-modal').classList.remove('hidden'); }
+  function closeModal() { document.getElementById('edit-modal').classList.add('hidden'); }
+
+  function fieldHTML(f, value = '') {
+    const v = escapeHTML(value ?? '');
+    if (f.type === 'textarea') {
+      return `<div class="field"><label>${f.label}</label><textarea id="field-${f.key}" rows="${f.rows || 4}">${v}</textarea></div>`;
+    }
+    if (f.type === 'select') {
+      const opts = f.options.map(o => `<option value="${o}" ${o === value ? 'selected' : ''}>${o}</option>`).join('');
+      return `<div class="field"><label>${f.label}</label><select id="field-${f.key}">${opts}</select></div>`;
+    }
+    return `<div class="field"><label>${f.label}</label><input type="${f.type}" id="field-${f.key}" value="${v}"></div>`;
+  }
+
+  function readFields() {
+    const out = {};
+    config.fields.forEach(f => {
+      const el = document.getElementById(`field-${f.key}`);
+      let val = el.value;
+      if (f.type === 'datetime-local' && val) val = new Date(val).toISOString();
+      out[f.key] = val || null;
+    });
+    return out;
+  }
+
+  function statusActions(item) {
+    if (!canPublish) return '';
+    const current = item.status;
+    const idx = config.statusValues.indexOf(current);
+    const next = config.statusValues[idx + 1];
+    const btns = [];
+    if (next) {
+      btns.push(`<button class="btn btn-small btn-primary" onclick="setStatus('${item.id}', '${next}')">Move to ${next.replace('_', ' ')}</button>`);
+    }
+    if (current !== 'archived') {
+      btns.push(`<button class="btn btn-small" onclick="setStatus('${item.id}', 'archived')">Archive</button>`);
+    }
+    return btns.join('');
+  }
+
+  async function loadList() {
+    const el = document.getElementById('list');
+    try {
+      const items = await authGet(config.endpoint);
+      if (items.length === 0) {
+        el.innerHTML = '<div class="empty-state">Nothing here yet. Create the first one.</div>';
+        return;
+      }
+      el.innerHTML = items.map(item => `
+        <div class="card">
+          ${config.metaOf(item) ? `<div class="meta">${escapeHTML(config.metaOf(item))}</div>` : ''}
+          <h3>${escapeHTML(config.titleOf(item))} <span class="status-pill status-${item.status}">${item.status.replace('_', ' ')}</span></h3>
+          <div class="actions">
+            ${canEdit ? `<button class="btn btn-small" onclick='openEdit(${JSON.stringify(item).replace(/'/g, "&#39;")})'>Edit</button>` : ''}
+            ${statusActions(item)}
+            ${canEdit ? `<button class="btn btn-small" onclick="deleteItem('${item.id}')">Delete</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+    } catch (err) { showError(err.message); }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-banner');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 5000);
+  }
+
+  function openNew() {
+    if (!canEdit) { showError('Your role cannot create this content.'); return; }
+    editingId = null;
+    document.getElementById('modal-title').textContent = `New ${config.label.slice(0, -1).toLowerCase()}`;
+    document.getElementById('modal-fields').innerHTML = config.fields.map(f => fieldHTML(f)).join('');
+    openModal();
+  }
+
+  function openEdit(item) {
+    editingId = item.id;
+    document.getElementById('modal-title').textContent = `Edit ${config.label.slice(0, -1).toLowerCase()}`;
+    document.getElementById('modal-fields').innerHTML = config.fields.map(f => {
+      let val = item[f.key];
+      if (f.type === 'datetime-local' && val) val = new Date(val).toISOString().slice(0, 16);
+      return fieldHTML(f, val);
+    }).join('');
+    openModal();
+  }
+
+  async function saveItem() {
+    const body = readFields();
+    try {
+      if (editingId) {
+        await authPut(`${config.endpoint}/${editingId}`, body);
+      } else {
+        await authPost(config.endpoint, body);
+      }
+      closeModal();
+      loadList();
+    } catch (err) { showError(err.message); }
+  }
+
+  async function setStatus(id, status) {
+    try { await authPost(`${config.endpoint}/${id}/status`, { status }); loadList(); }
+    catch (err) { showError(err.message); }
+  }
+
+  async function deleteItem(id) {
+    if (!confirm('Delete this permanently? This cannot be undone.')) return;
+    try { await authDelete(`${config.endpoint}/${id}`); loadList(); }
+    catch (err) { showError(err.message); }
+  }
+
+  document.getElementById('new-btn').addEventListener('click', openNew);
+  document.getElementById('modal-save').addEventListener('click', saveItem);
+
+  loadList();
+</script>
+</body>
+</html>

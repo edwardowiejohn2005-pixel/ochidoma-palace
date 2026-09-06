@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Announcements — Palace Admin Portal</title>
+<link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">INSIDE THE <span>OCHIDOMA'S</span> PALACE<br><span style="color: var(--parchment-dim); font-size: 0.8rem;">Admin Portal</span></div>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="content.html?type=articles">Articles</a>
+      <a href="content.html?type=foods">Foods</a>
+      <a href="content.html?type=events">Events</a>
+      <a href="announcements.html" class="active">Announcements</a>
+      <a href="decrees.html">Royal Decrees</a>
+    </nav>
+    <div class="user-info" id="sidebar-user"></div>
+  </aside>
+
+  <main class="main">
+    <div class="main-head">
+      <h1 style="font-size: 1.6rem;">Announcements</h1>
+      <button class="btn btn-primary" id="new-btn">New announcement</button>
+    </div>
+
+    <div id="error-banner" class="error-banner hidden"></div>
+    <div id="list"><div class="empty-state">Loading…</div></div>
+  </main>
+</div>
+
+<div class="modal-backdrop hidden" id="new-modal">
+  <div class="modal">
+    <h2 style="font-size: 1.2rem;">New announcement</h2>
+    <div class="field"><label>Title</label><input id="f-title"></div>
+    <div class="field"><label>Category</label><input id="f-category" placeholder="e.g. Public Notice"></div>
+    <div class="field"><label>Content</label><textarea id="f-content" rows="6"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('new-modal')">Cancel</button>
+      <button class="btn btn-primary" id="new-modal-save">Create draft</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  requireLogin();
+  renderSidebarUser();
+
+  const canEdit = hasRole('super_admin', 'palace_editor');
+  const canPublish = isPublisher();
+
+  function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+  function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+  function actionButtons(a) {
+    const btns = [];
+    if (canEdit && a.status === 'draft') {
+      btns.push(`<button class="btn btn-small" onclick="doAction('${a.id}', 'submit')">Submit for review</button>`);
+    }
+    if (canPublish && a.status === 'in_review') {
+      btns.push(`<button class="btn btn-small btn-primary" onclick="doAction('${a.id}', 'approve')">Approve</button>`);
+    }
+    if (canPublish && a.status === 'approved') {
+      btns.push(`<button class="btn btn-small btn-primary" onclick="doAction('${a.id}', 'publish')">Publish</button>`);
+    }
+    if (canPublish && (a.status === 'published' || a.status === 'approved')) {
+      btns.push(`<button class="btn btn-small" onclick="doAction('${a.id}', 'archive')">Archive</button>`);
+    }
+    return btns.join('');
+  }
+
+  async function loadList() {
+    const el = document.getElementById('list');
+    try {
+      const items = await authGet('/api/admin/announcements');
+      if (items.length === 0) {
+        el.innerHTML = '<div class="empty-state">No announcements yet. Create the first one.</div>';
+        return;
+      }
+      el.innerHTML = items.map(a => `
+        <div class="card">
+          <div class="meta">${a.category ? escapeHTML(a.category) + ' · ' : ''}${a.reference_number ? escapeHTML(a.reference_number) : 'No reference number yet'}</div>
+          <h3>${escapeHTML(a.title)} <span class="status-pill status-${a.status}">${a.status.replace('_', ' ')}</span></h3>
+          <p style="font-size: 0.92rem; color: var(--ink-soft);">${escapeHTML(a.content.slice(0, 160))}${a.content.length > 160 ? '…' : ''}</p>
+          <div class="actions">${actionButtons(a) || '<span style="color: var(--ink-soft); font-size: 0.85rem;">No actions available for your role at this stage.</span>'}</div>
+        </div>
+      `).join('');
+    } catch (err) { showError(err.message); }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-banner');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 5000);
+  }
+
+  async function doAction(id, action) {
+    if (action === 'publish' && !confirm('Publish this announcement? It will become publicly visible immediately.')) return;
+    try { await authPost(`/api/admin/announcements/${id}/${action}`); loadList(); }
+    catch (err) { showError(err.message); }
+  }
+
+  document.getElementById('new-btn').addEventListener('click', () => {
+    if (!canEdit) { showError('Your role cannot create announcements.'); return; }
+    document.getElementById('f-title').value = '';
+    document.getElementById('f-category').value = '';
+    document.getElementById('f-content').value = '';
+    openModal('new-modal');
+  });
+
+  document.getElementById('new-modal-save').addEventListener('click', async () => {
+    try {
+      await authPost('/api/admin/announcements', {
+        title: document.getElementById('f-title').value,
+        category: document.getElementById('f-category').value || null,
+        content: document.getElementById('f-content').value,
+      });
+      closeModal('new-modal');
+      loadList();
+    } catch (err) { showError(err.message); }
+  });
+
+  loadList();
+</script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Palace Announcements — Och'Idoma</title>
+<meta name="description" content="Official Palace announcements, statements, and public notices from the Idoma Kingdom.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container">
+    <div class="site-wordmark">INSIDE THE <span>OCHIDOMA'S</span> PALACE</div>
+    <nav class="site-nav">
+      <a href="index.html">Home</a>
+      <a href="heritage.html">Heritage</a>
+      <a href="history.html">History</a>
+      <a href="food.html">Food</a>
+      <a href="events.html">Events</a>
+      <a href="palace.html" class="active">Palace</a>
+      <a href="decrees.html">Royal Decrees</a>
+      <a href="gallery.html">Gallery</a>
+      <a href="about.html">About</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding: 56px 0 64px; background: var(--blue);">
+  <div class="container">
+    <span class="official-badge">✓ Official Palace Publication</span>
+    <h1 style="margin-top: 16px;">Palace Announcements</h1>
+    <p class="lede">Official statements, public notices, and communications published directly by the Palace.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div id="announcements-list" class="panel-grid" style="grid-template-columns: 1fr;">
+      <div class="state-message">Loading announcements…</div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <h4>Och'Idoma</h4>
+        <p style="color: var(--parchment-dim); font-size: 0.92rem;">The official digital home for Idoma heritage, history, and Palace communications.</p>
+      </div>
+      <div>
+        <h4>Explore</h4>
+        <a href="heritage.html">Heritage</a>
+        <a href="history.html">History</a>
+        <a href="food.html">Food</a>
+        <a href="gallery.html">Gallery</a>
+      </div>
+      <div>
+        <h4>Palace</h4>
+        <a href="palace.html">Announcements</a>
+        <a href="decrees.html">Royal Decrees</a>
+        <a href="about.html">About</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Och'Idoma. Cultural content preserved and presented for the Idoma people.</div>
+  </div>
+</footer>
+
+<script src="js/api.js"></script>
+<script>
+  async function loadAnnouncements() {
+    const el = document.getElementById('announcements-list');
+    try {
+      const announcements = await api.announcements();
+      if (announcements.length === 0) {
+        renderState(el, 'No official announcements have been published yet. Check back soon.');
+        return;
+      }
+      el.innerHTML = announcements.map(a => `
+        <div class="panel is-official">
+          <span class="official-badge">✓ Official Palace Publication</span>
+          ${a.is_demo_content ? '<span class="demo-flag">DEMO CONTENT</span>' : ''}
+          <h3 style="margin-top: 14px;">${escapeHTML(a.title)}</h3>
+          <div class="meta">
+            ${a.reference_number ? `<span class="ref-number">${escapeHTML(a.reference_number)}</span> · ` : ''}
+            Published ${formatDate(a.published_at)}
+            ${a.category ? ' · ' + escapeHTML(a.category) : ''}
+          </div>
+          <p>${escapeHTML(a.content)}</p>
+        </div>
+      `).join('');
+    } catch (err) {
+      renderState(el, 'Could not reach the Palace feed right now — the API may be offline.');
+      console.error(err);
+    }
+  }
+  loadAnnouncements();
+</script>
+</body>
+</html>

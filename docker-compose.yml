@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ochidoma
+      POSTGRES_PASSWORD: ochidoma
+      POSTGRES_DB: ochidoma
+    ports:
+      - "5432:5432"
+    volumes:
+      - ochidoma_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ochidoma"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ochidoma_media:/app/media
+
+volumes:
+  ochidoma_pgdata:
+  ochidoma_media:
